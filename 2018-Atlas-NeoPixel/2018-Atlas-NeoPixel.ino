@@ -38,7 +38,8 @@ enum {
 
 uint32_t blingColor = OFF;
 int blingEffect = SOLID;
-uint8_t blingBrightness = 100;
+unsigned long effectDelay = 10;
+int blingBrightness = 100;
 
 
 
@@ -77,7 +78,7 @@ bool checkForCommand(void)
   {
     char tempCommand;
     tempCommand = Serial.read();
-    if (isalnum(tempCommand))
+    if (isprint(tempCommand))
     {
       Serial.print("Got command: ");
       Serial.print(tempCommand);
@@ -152,7 +153,7 @@ void blink(unsigned long timeInterval, uint32_t color, uint8_t brightness)
 void fade(unsigned long timeInterval, uint32_t color, uint8_t maxBrightness)
 {
   bool brightening = true;
-  uint8_t brightness = 0;
+  int brightness = 0;
 
   Serial.println("fade()");
   // Set the strip to the desired color to begin with
@@ -193,7 +194,7 @@ void spartronics_fade(unsigned long timeInterval, uint32_t color1, uint32_t colo
 {
   Serial.println("spartronics_fade()");
   bool brightening = true;
-  uint8_t brightness = 0;
+  int brightness = 0;
   bool color1_is_current = true;;
 
   // Set the strip to the desired color to begin with
@@ -268,8 +269,6 @@ void setup() {
 
 void loop()
 {
-  unsigned long effectDelay = 10; // Default effect delay
-
   // Take the current command and set the parameters
   switch (currentCommand)
   {
@@ -320,6 +319,26 @@ void loop()
       blingColor = GREEN;
       break;
 
+    // Adjust brightness
+    // FIXME: Does not work... Not isalnum()
+    // Also, needs to be repeatable...
+    // Could set currentCommand to lastCommand..
+    // Alternative: Fixed brightnesses 0..9?
+    case '+':
+      blingBrightness = blingBrightness + 10;
+      if (blingBrightness > 255)
+      {
+        blingBrightness = 255;
+      }
+      break;
+    case '-':
+      blingBrightness = blingBrightness - 10;
+      if (blingBrightness < 0)
+      {
+        blingBrightness = 0;
+      }
+      break;
+
     // Reset everything
     case '8':
       //resets all effects
@@ -332,6 +351,8 @@ void loop()
 
     default:
       // Unknown command!
+      Serial.print("Unknown command: ");
+      Serial.println(currentCommand);
       currentCommand = '\0';
       blingColor = OFF;
       blingEffect = SOLID;
@@ -365,6 +386,8 @@ void loop()
       break;
     default:
       // Unknown bling effect
+      Serial.print("Unknown effect: ");
+      Serial.println(blingEffect);
       solid(OFF, 0);
   }
 }
