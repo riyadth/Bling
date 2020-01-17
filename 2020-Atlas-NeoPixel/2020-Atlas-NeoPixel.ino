@@ -229,6 +229,83 @@ void spartronics_fade(unsigned long timeInterval, uint32_t color1, uint32_t colo
 }
 
 
+void crawler(uint16_t timeInterval, uint32_t color, uint8_t length)
+{
+  // From the middle of the top, start illuminating pixels towards the ends
+  // After length pixels have been added to each side, turn old pixels off
+  // Pixels continue to scroll off of ends, then the scheme reverses
+
+  uint8_t tempLength;
+  uint8_t headUp;
+  uint8_t headDown;
+  uint8_t tailUp;
+  uint8_t tailDown;
+
+  while (1)
+  {
+    // Turn off the strip
+    fillStrip(NONE);
+
+    tempLength = length;
+    headUp = (NUM_LEDS/2);
+    headDown = headUp - 1;
+    for (uint8_t i=0; i<length; i++)
+    {
+      pixels.setPixelColor(headUp++, color);
+      pixels.setPixelColor(headDown--, color);
+      pixels.show();
+      INTERRUPTABLE_DELAY(timeInterval);
+    }
+    tailUp = (NUM_LEDS/2);
+    tailDown = tailUp - 1;
+    while (headUp < NUM_LEDS)
+    {
+      pixels.setPixelColor(headUp++, color);
+      pixels.setPixelColor(headDown--, color);
+      pixels.setPixelColor(tailUp++, OFF);
+      pixels.setPixelColor(tailDown--, OFF);
+      pixels.show();
+      INTERRUPTABLE_DELAY(timeInterval);
+    }
+    while (tailUp < NUM_LEDS)
+    {
+      pixels.setPixelColor(tailUp++, OFF);
+      pixels.setPixelColor(tailDown--, OFF);
+      pixels.show();
+      INTERRUPTABLE_DELAY(timeInterval);
+    }
+    // Reverse!
+    tempLength = length;
+    headUp = NUM_LEDS - 1;
+    headDown = 0;
+    for (uint8_t i=0; i<length; i++)
+    {
+      pixels.setPixelColor(headUp--, color);
+      pixels.setPixelColor(headDown++, color);
+      pixels.show();
+      INTERRUPTABLE_DELAY(timeInterval);
+    }
+    tailUp = NUM_LEDS - 1;
+    tailDown = 0;
+    while (headUp >= (NUM_LEDS/2))
+    {
+      pixels.setPixelColor(headUp--, color);
+      pixels.setPixelColor(headDown++, color);
+      pixels.setPixelColor(tailUp--, OFF);
+      pixels.setPixelColor(tailDown++, OFF);
+      pixels.show();
+      INTERRUPTABLE_DELAY(timeInterval);
+    }
+    while (tailUp >= (NUM_LEDS/2))
+    {
+      pixels.setPixelColor(tailUp--, OFF);
+      pixels.setPixelColor(tailDown++, OFF);
+      pixels.show();
+      INTERRUPTABLE_DELAY(timeInterval);
+    }
+  }
+}
+
 // Number of LEDs per "cog" on the animation
 #define COG_SIZE 5
 
@@ -278,7 +355,7 @@ void loop()
       wait_for_command();
       break;
     case INTAKE_DOWN:
-      blink(1000, RED, 255);
+      crawler(10, RED, 30);
       break;
     case LAUNCH:
       flash(FLASH_TIME_INTERVAL, WHITE, 255);
