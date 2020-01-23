@@ -1,8 +1,9 @@
 #include <Adafruit_NeoPixel.h>
 #include <ctype.h>
+#include <setjmp.h>
 
 // Configuration for our LED strip and Arduino
-#define NUM_LEDS 150
+#define NUM_LEDS 64
 #define PIN 11
 
 // Time in milliseconds for the flash of light
@@ -32,54 +33,44 @@ enum {
 };
 
 
-// "Magic" delay macro to exit a function if a new command is available
-// Execute the delay 10ms at a time, and check for available bytes
-#define INTERRUPTABLE_DELAY(x)  {                               \
-  unsigned long timeIntervalCounter = (x);                      \
-  while (timeIntervalCounter != 0) {                            \
-    if (timeIntervalCounter > 10) {                             \
-      delay(10);                                                \
-      timeIntervalCounter = timeIntervalCounter - 10;           \
-    } else {                                                    \
-      delay(timeIntervalCounter);                               \
-      timeIntervalCounter = 0;                                  \
-    }                                                           \
-    if (checkForCommand() == true) {                            \
-      return;                                                   \
-    }                                                           \
-  }                                                             \
-}
-
 // A global variable to hold the current command to be executed
 uint8_t currentCommand = DISABLED;
 
-// Check for a new command byte, and return true if one is found
-bool checkForCommand(void)
-{
-  bool result = false;
+// The breadcrumb to get us back to the beginning of the loop
+jmp_buf env;
 
-  // If there are any characters available on the serial port, read them
-  while (Serial.available() > 0)
+#define INTERRUPTABLE_DELAY _delay
+
+// Our magic delay function
+void _delay(uint16_t timeout)
+{
+  while (timeout != 0)
   {
-    char commandCharacter;
-    commandCharacter = Serial.read();
-    if (isprint(commandCharacter) && (commandCharacter >= '0'))
+    delay(1);
+    timeout--;
+
+    // If there are any characters available on the serial port, read them
+    while (Serial.available() > 0)
     {
-      uint8_t command = commandCharacter - '0';
-      if (command < ANIMATION_COUNT)
+      char commandCharacter;
+      commandCharacter = Serial.read();
+      if (isprint(commandCharacter) && (commandCharacter >= '0'))
       {
-        // Found a valid command!
-        if (command != currentCommand)
+        uint8_t command = commandCharacter - '0';
+        if (command < ANIMATION_COUNT)
         {
-          // It's a new command!
-          currentCommand = command;
-          result = true;
-          break;
+          // Found a valid command!
+          if (command != currentCommand)
+          {
+            // It's a new command!
+            currentCommand = command;
+            // Jump back to the top of the loop
+            longjmp(env, 1);
+          }
         }
       }
     }
   }
-  return result;
 }
 
 // Fill the strip with a single color
@@ -331,15 +322,26 @@ void cogs_init(uint32_t color1, uint32_t color2)
  * Arduino setup() and loop()
  ******************************************************************************/
 
-void setup() {
+void setup(void) {
   Serial.begin(9600);
   pixels.begin(); // initialize neopixel library
   pixels.setBrightness(64);
   fillStrip(ORANGE);
 }
 
-void loop()
+void loop(void)
 {
+  // Save a breadcrumb of where to jump back to
+  if (setjmp(env) != 0)
+  {
+    // If we jumped back (non-zero return value), then exit the loop()
+    // and it will be re-run again, leaving a new breadcrumb.
+    return;
+  }
+
+  // From here everything should be interruptable (to switch animations)
+  // as long as the animation code uses the INTERRUPTABLE_DELAY function.
+
   // Take the current command and set the parameters
   switch (currentCommand)
   {
