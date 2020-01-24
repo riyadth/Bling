@@ -434,7 +434,6 @@ void loop(void)
       break;
     case INTAKE_UP:
       cogs(BLUE, YELLOW);
-      wait_for_command();
       break;
     case INTAKE_DOWN:
       crawler(10, RED, 30);
