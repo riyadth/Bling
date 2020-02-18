@@ -3,7 +3,7 @@
 #include <setjmp.h>
 
 // Configuration for our LED strip and Arduino
-#define NUM_LEDS 64
+#define NUM_LEDS 150
 #define PIN 11
 
 // Time in milliseconds for the flash of light
@@ -305,90 +305,96 @@ void crawler(uint16_t timeInterval, uint32_t color, uint8_t length)
 // A counter from 0 to (2*COG_SIZE)-1
 uint8_t cogOffset=0;
 
-// Classic Spartronics Cogs
+/* Spartronics cogs initialization */
 void cogs_init(uint32_t color1, uint32_t color2)
 {
-  for (uint8_t i = 0; i < NUM_LEDS; i++) {
-    if ((((uint8_t) (i / COG_SIZE)) & 1) == 0) {
-      pixels.setPixelColor(i, color1);
+  uint8_t led=0;
+
+  while (led < NUM_LEDS)
+  {
+    for (uint8_t i=0; (i<COG_SIZE) && (led<NUM_LEDS); i++)
+    {
+      pixels.setPixelColor(led++, color1);
     }
-    else {
-      pixels.setPixelColor(i, color2);
+    for (uint8_t i=0; (i<COG_SIZE) && (led<NUM_LEDS); i++)
+    {
+      pixels.setPixelColor(led++, color2);
     }
   }
   pixels.show();
 }
 
-//moves every led up one, and inserts colorIn at leds[0]
-void shiftUp(uint32_t colorIn) {
-  for (int i = (NUM_LEDS - 1); i > 0; i--) {
-    //The last led becomes the previous led's color
-    pixels.setPixelColor(i, pixels.getPixelColor(i-1));
-  }
-  pixels.setPixelColor(0, colorIn);
-}
-
-//moves every led down one, and inserts colorIn at leds[(NUM_LEDS - 1)]
-void shiftDown(uint32_t colorIn) {
-  for (int i = 0; i < (NUM_LEDS - 1); i++) {
-    //The first led becomes the next led's color
-    pixels.setPixelColor(i, pixels.getPixelColor(i+1));
-  }
-  pixels.setPixelColor(NUM_LEDS-1, colorIn);
-}
-
-void moveCogsUp() {
-  boolean changeColor = true;
-  for (int i = 0; i < (COG_SIZE - 1); i++) {
-    if (pixels.getPixelColor(i) != pixels.getPixelColor(i+1)) {
-      changeColor = false;
-    }
-  }
-  if (changeColor) {
-    shiftUp(pixels.getPixelColor(COG_SIZE));
-  }
-  else {
-    shiftUp(pixels.getPixelColor(0));
+/* Set one pixel of each "cycle" to the specified color, starting at offset */
+void setFromOffset(uint8_t offset, uint32_t color)
+{
+  for (uint8_t led=offset; (led<NUM_LEDS); led+=(2*COG_SIZE))
+  {
+    pixels.setPixelColor(led, color);
   }
 }
 
-void moveCogsDown() {
-  boolean changeColor = true;
-  for (int i = (NUM_LEDS - 1); i > (NUM_LEDS - (COG_SIZE)); i--) {
-    if (pixels.getPixelColor(i) != pixels.getPixelColor(i-1)) {
-      changeColor = false;
-    }
+/* Move the cogs up one pixel */
+void moveCogsUp(uint32_t color1, uint32_t color2)
+{
+  cogOffset = (cogOffset + 1) % (2 * COG_SIZE);
+  // Since we are moving cogs up, we increase our offset by one COG_SIZE
+  // so that we add to the tail of the cog, rather than overwriting the
+  // beginning
+  uint8_t tempCogOffset = (cogOffset + COG_SIZE - 1) % (2 * COG_SIZE);
+  if (tempCogOffset < COG_SIZE)
+  {
+    setFromOffset(tempCogOffset, color1);
+    setFromOffset(tempCogOffset + COG_SIZE, color2);
   }
-  if (changeColor) {
-    shiftDown(pixels.getPixelColor(NUM_LEDS - COG_SIZE - 1));
-  }
-  else {
-    shiftDown(pixels.getPixelColor(NUM_LEDS - 1));
-  }
-}
-
-void rotatingCogsUp(uint32_t colorOne, uint32_t colorTwo) {
-  pixels.show();
-  for (int i = 0; i < 30; i++) {
-    for (int c = 0; c < COG_SIZE; c++) {
-      moveCogsUp();
-      _delay(100);
-      pixels.show();
-    }
+  else
+  {
+    setFromOffset(tempCogOffset, color1);
+    setFromOffset(tempCogOffset - COG_SIZE, color2);
   }
 }
 
-void rotatingCogsDown(uint32_t colorOne, uint32_t colorTwo) {
-  pixels.show();
-  for (int i = 0; i < 30; i++) {
-    for (int c = 0; c < COG_SIZE; c++) {
-      moveCogsDown();
-      _delay(100);
-      pixels.show();
-    }
+/* Move the cogs down one pixel */
+void moveCogsDown(uint32_t color1, uint32_t color2)
+{
+  // Shift the cogOffset down by one, but if it's zero then set it to
+  // the last pixel in the first cog "cycle"
+  if (cogOffset-- == 0)
+  {
+    cogOffset = (2 * COG_SIZE) - 1;
+  }
+  if (cogOffset < COG_SIZE)
+  {
+    setFromOffset(cogOffset, color1);
+    setFromOffset(cogOffset + COG_SIZE, color2);
+  }
+  else
+  {
+    setFromOffset(cogOffset, color1);
+    setFromOffset(cogOffset - COG_SIZE, color2);
   }
 }
 
+/* Show a bunch of cycles of upward rotation of the cogs */
+void rotatingCogsUp(uint32_t colorOne, uint32_t colorTwo)
+{
+  for (int i = 0; i < (8 * COG_SIZE); i++) {
+    moveCogsUp(colorOne, colorTwo);
+    pixels.show();
+    _delay(100);
+  }
+}
+
+/* Show a bunch of cycles of downward rotation of the cogs */
+void rotatingCogsDown(uint32_t colorOne, uint32_t colorTwo)
+{
+  for (int i = 0; i < (8 * COG_SIZE); i++) {
+    moveCogsDown(colorOne, colorTwo);
+    pixels.show();
+    _delay(100);
+  }
+}
+
+/* Show the Spartronics Blue and Yellow cogs! */
 void cogs(uint32_t color1, uint32_t color2)
 {
   cogs_init(color1, color2);
@@ -402,7 +408,8 @@ void cogs(uint32_t color1, uint32_t color2)
  * Arduino setup() and loop()
  ******************************************************************************/
 
-void setup(void) {
+void setup(void)
+{
   Serial.begin(9600);
   pixels.begin(); // initialize neopixel library
   pixels.setBrightness(DEFAULT_BRIGHTNESS);
